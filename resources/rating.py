@@ -1,28 +1,27 @@
+import datetime
 from http import HTTPStatus
+from os import access
 from flask import request
-from flask_jwt_extended import get_jwt_identity, jwt_required
+from flask_jwt_extended import create_access_token, get_jwt, get_jwt_identity, jwt_required
 from flask_restful import Resource
 from mysql.connector.errors import Error
 from mysql_connection import get_connection
 import mysql.connector
 
-
 class RatingListResource(Resource) :
     @jwt_required()
     def post(self) :
-        # 1. 클라이언트로부터 정보를 받아온다.
+
+        # 1. 클라이언트로부터 데이터를 받아온다.
         # {
-        #     "email": "ccc@gmail.com",
-        #     "password": "1234"
+        #     "movie_id": 32,
+        #     "rating": 4
         # }
 
         data = request.get_json()
-
         user_id = get_jwt_identity()
 
-        # 2. DB에 insert
-
-        # 디비로부터 데이터를 받아서, 클라이언트에 보내준다.
+        # 2. 디비에 insert
         try :
             # 데이터 insert 
             # 1. DB에 연결
@@ -34,7 +33,8 @@ class RatingListResource(Resource) :
                     values
                     (%s, %s , %s);'''
             
-            record = (user_id, data['movieId'],data['rating'] )
+            record = (user_id, data['movieId'], 
+                        data['rating'] )
 
             # 3. 커서를 가져온다.
             cursor = connection.cursor()
@@ -55,34 +55,34 @@ class RatingListResource(Resource) :
             connection.close()
             return {"error" : str(e)}, 503
 
-        return {"result" : "success"}, 200
-
+        return {'result' : 'success'}, 200
 
     @jwt_required()
     def get(self) :
+
+        # 1. 클라이언트로부터 데이터 받아온다.
         # ?offset=0&limit=25
 
         offset = request.args['offset']
         limit = request.args['limit']
-
         user_id = get_jwt_identity()
 
-        # 디비로부터 데이터를 받아서, 클라이언트에 보내준다.
+        # 2. 내 리뷰리스트를 디비에서 가져온다.
         try :
             connection = get_connection()
 
-            query = '''select m.title, r.rating
-                    from rating r
-                    join movie m
-                    on r.movieId = m.Id and r.userId = %s
+            query = ''' m.title, r.rating
+                    from rating r 
+                    join movie m 
+                    on r.movieId = m.id and r.userId = %s                    
                     limit '''+offset+''' , '''+limit+''';'''
             
-            record = (user_id, )
+            record = (user_id,)
 
             # select 문은, dictionary = True 를 해준다.
             cursor = connection.cursor(dictionary = True)
 
-            cursor.execute( query, record)
+            cursor.execute(query, record)
 
             # select 문은, 아래 함수를 이용해서, 데이터를 가져온다.
             result_list = cursor.fetchall()
@@ -108,30 +108,29 @@ class RatingListResource(Resource) :
 
             return {"error" : str(e), 'error_no' : 20}, 503
 
-
-        return { "result" : "success" , 
-                "count" : len(result_list) ,
-                "items" : result_list }, 200
+        return {'result' : 'success' ,
+                'count' : len(result_list) , 
+                'items' : result_list} , 200
 
 
 class MovieRatingResource(Resource) :
-    
-    def get(self,movie_id) :
-        
+
+    def get(self, movie_id) :
+        # 1. 클라이언트로부터 데이터 받아온다.
         # ?offset=0&limit=25
+
         offset = request.args['offset']
         limit = request.args['limit']
-        
 
-        # 1. 클라이언트로부터 데이터를 받아온다.
+        # 2. 디비로부터 데이터를 가져온다.
         try :
             connection = get_connection()
 
-            query = '''select m.title, u.name, u.gender, r.rating
-                    from movie m
-                    left join rating r
+            query = '''select u.name, u.gender, r.rating
+                    from rating r 
+                    join movie m 
                     on r.movieId = m.id and m.id = %s
-                    join user u
+                    join user u 
                     on r.userId = u.id
                     limit '''+offset+''' , '''+limit+''';'''
             
@@ -145,7 +144,6 @@ class MovieRatingResource(Resource) :
             # select 문은, 아래 함수를 이용해서, 데이터를 가져온다.
             result_list = cursor.fetchall()
 
-
             print(result_list)
 
             # 중요! 디비에서 가져온 timestamp 는 
@@ -155,8 +153,6 @@ class MovieRatingResource(Resource) :
             # i = 0
             # for record in result_list :
             #     result_list[i]['avg'] = float(record['avg'])
-            #     result_list[i]['year'] = record['year'].isoformat()
-            #     result_list[i]['createdAt'] = record['createdAt'].isoformat()
             #     i = i + 1                
 
             cursor.close()
@@ -169,9 +165,11 @@ class MovieRatingResource(Resource) :
 
             return {"error" : str(e), 'error_no' : 20}, 503
 
+        return {'result' : 'success',
+                'count' : len(result_list), 
+                'items' : result_list}, 200
 
-        return { "result" : "success" , 
-                "items" : result_list }, 200
 
 
-        
+
+
